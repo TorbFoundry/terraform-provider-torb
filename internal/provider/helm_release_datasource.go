@@ -2,7 +2,9 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"os"
 	"os/exec"
 	"strconv"
 	"time"
@@ -12,7 +14,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"github.com/jeremywohl/flatten"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -27,12 +28,12 @@ type HelmReleaseDataSource struct{}
 type HelmReleaseDataSourceModel struct {
 	ReleaseName types.String `tfsdk:"release_name"`
 	Namespace   types.String `tfsdk:"namespace"`
-	Values      types.Map    `tfsdk:"values"`
+	Values      types.String `tfsdk:"values"`
 	Id          types.String `tfsdk:"id"`
 }
 
 func (d *HelmReleaseDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_helm_release_datasource"
+	resp.TypeName = req.ProviderTypeName + "_helm_release"
 }
 
 func (d *HelmReleaseDataSource) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
@@ -45,6 +46,7 @@ func (d *HelmReleaseDataSource) GetSchema(ctx context.Context) (tfsdk.Schema, di
 				MarkdownDescription: "The name of the release to reference.",
 				Optional:            false,
 				Type:                types.StringType,
+				Required:            true,
 			},
 			"namespace": {
 				MarkdownDescription: "The name of the namespace under which the release happened.",
@@ -62,10 +64,8 @@ func (d *HelmReleaseDataSource) GetSchema(ctx context.Context) (tfsdk.Schema, di
 			},
 			"values": {
 				MarkdownDescription: "The values of the release.",
-				Type: types.MapType{
-					ElemType: types.StringType,
-				},
-				Computed: true,
+				Type:                types.StringType,
+				Computed:            true,
 			},
 		},
 	}, nil
@@ -84,7 +84,7 @@ func (d *HelmReleaseDataSource) Read(ctx context.Context, req datasource.ReadReq
 	// Read Terraform configuration data into the model
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 
-	res, err := readReleaseFromHelm(data.ReleaseName.String(), data.Namespace.String())
+	res, err := readReleaseFromHelm(ctx, data.ReleaseName.String(), data.Namespace.String())
 	// For the purposes of this example code, hardcoding a response value to
 	// save into the Terraform state.
 
@@ -97,29 +97,39 @@ func (d *HelmReleaseDataSource) Read(ctx context.Context, req datasource.ReadReq
 	}
 
 	data.Id = types.StringValue(strconv.FormatInt(time.Now().Unix(), 10))
-	data.Values = res
-
-	// Write logs using the tflog package
-	// Documentation: https://terraform.io/plugin/log
-	tflog.Trace(ctx, "read a data source")
+	data.Values = types.StringValue(res)
 
 	// Save data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func readReleaseFromHelm(release_name string, namespace string) (map[string]interface{}, error) {
-	var data map[string]interface{}
-	out, err := exec.Command("helm", "get", "--namespace", namespace, "values", release_name, "-o", "json").Output()
+func readReleaseFromHelm(ctx context.Context, release_name string, namespace string) (string, error) {
+	cmd := exec.Command("helm", "get", "--namespace", namespace, "values", release_name, "-o", "json")
+	cmd.Stdin = os.Stdin
+	cmd.Stderr = os.Stderr
+	stdOut, err := cmd.StdoutPipe()
+	if err != nil {
+		return "", err
+	}
+
+	if err := cmd.Start(); err != nil {
+		return "", err
+	}
+
+	bytes, err := ioutil.ReadAll(stdOut)
+
+	tflog.Warn(ctx, fmt.Sprintf("%s", bytes))
 
 	if err != nil {
-		return data, err
+		return "", err
 	}
 
-	if err := json.Unmarshal(out, &data); err != nil {
-		return data, err
+	if err := cmd.Wait(); err != nil {
+		if exitError, ok := err.(*exec.ExitError); ok {
+			err_msg := fmt.Sprintf("Exit code is %d, %s\n", exitError.ExitCode(), bytes)
+			return "", fmt.Errorf(err_msg)
+		}
 	}
 
-	flat, err := flatten.Flatten(data, "", flatten.DotStyle)
-
-	return flat, nil
+	return string(bytes), nil
 }
