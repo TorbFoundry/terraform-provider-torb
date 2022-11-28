@@ -9,12 +9,12 @@ terraform {
 
 provider "torb" {}
 
-module "helm_release" {
+module "torb_helm_release_test" {
   source = "./data-sources/helm_release"
-  release_name = "hello-world"
-  namespace = "terraform-provider-torb-testing"
+  release_name = "dollar-bedroom"
+  namespace = "flask-app-w-react-frontend"
 }
 
 output "all_values" {
-  value = jsondecode(module.helm_release.all_values)
+  value = jsondecode(module.torb_helm_release_test.all_values)
 }

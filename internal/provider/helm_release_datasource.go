@@ -2,9 +2,6 @@ package provider
 
 import (
 	"context"
-	"fmt"
-	"io/ioutil"
-	"os"
 	"os/exec"
 	"strconv"
 	"time"
@@ -13,7 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
+	"github.com/jeremywohl/flatten"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces
@@ -84,9 +81,10 @@ func (d *HelmReleaseDataSource) Read(ctx context.Context, req datasource.ReadReq
 	// Read Terraform configuration data into the model
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 
-	res, err := readReleaseFromHelm(ctx, data.ReleaseName.String(), data.Namespace.String())
-	// For the purposes of this example code, hardcoding a response value to
-	// save into the Terraform state.
+	release_name := data.ReleaseName.ValueString()
+	namespace := data.Namespace.ValueString()
+
+	res, err := readReleaseFromHelm(ctx, release_name, namespace)
 
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to read values from Helm", err.Error())
@@ -96,40 +94,25 @@ func (d *HelmReleaseDataSource) Read(ctx context.Context, req datasource.ReadReq
 		return
 	}
 
+	flat_json, err := flatten.FlattenString(res, "", flatten.DotStyle)
+
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to flatten nested JSON", err.Error())
+	}
+
 	data.Id = types.StringValue(strconv.FormatInt(time.Now().Unix(), 10))
-	data.Values = types.StringValue(res)
+	data.Values = types.StringValue(flat_json)
 
 	// Save data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
 func readReleaseFromHelm(ctx context.Context, release_name string, namespace string) (string, error) {
-	cmd := exec.Command("helm", "get", "--namespace", namespace, "values", release_name, "-o", "json")
-	cmd.Stdin = os.Stdin
-	cmd.Stderr = os.Stderr
-	stdOut, err := cmd.StdoutPipe()
-	if err != nil {
-		return "", err
-	}
-
-	if err := cmd.Start(); err != nil {
-		return "", err
-	}
-
-	bytes, err := ioutil.ReadAll(stdOut)
-
-	tflog.Warn(ctx, fmt.Sprintf("%s", bytes))
+	out, err := exec.Command("helm", "get", "--namespace", namespace, "values", release_name, "-o", "json").CombinedOutput()
 
 	if err != nil {
 		return "", err
 	}
 
-	if err := cmd.Wait(); err != nil {
-		if exitError, ok := err.(*exec.ExitError); ok {
-			err_msg := fmt.Sprintf("Exit code is %d, %s\n", exitError.ExitCode(), bytes)
-			return "", fmt.Errorf(err_msg)
-		}
-	}
-
-	return string(bytes), nil
+	return string(out), nil
 }
