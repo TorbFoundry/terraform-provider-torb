@@ -14,7 +14,7 @@ variable "release_name" {
 
 variable "namespace" {
   type    = string
-  default = "terraform-provider-torb-testing"
+  default = "torb-test"
 }
 
 data "torb_helm_release" "release" {

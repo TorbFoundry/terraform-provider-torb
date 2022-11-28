@@ -11,8 +11,8 @@ provider "torb" {}
 
 module "torb_helm_release_test" {
   source = "./data-sources/helm_release"
-  release_name = "dollar-bedroom"
-  namespace = "flask-app-w-react-frontend"
+  release_name = "hello-world"
+  namespace = "test-torb"
 }
 
 output "all_values" {
