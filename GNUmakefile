@@ -3,7 +3,7 @@ HOSTNAME=torb
 NAMESPACE=tf
 NAME=provider
 BINARY=terraform-provider-${NAME}
-VERSION=0.2
+VERSION=0.1.1
 OS_ARCH=darwin_amd64
 
 default: install

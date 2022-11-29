@@ -16,16 +16,17 @@ import (
 
 // Run the docs generation tool, check its repository for more information on how it works and how docs
 // can be customized.
-//go:generate go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs
 
 var (
 	// these will be set by the goreleaser configuration
 	// to appropriate values for the compiled binary
-	version string = "dev"
+	version string = "v0.1.1"
 
 	// goreleaser can also pass the specific commit if you want
 	// commit  string = ""
 )
+
+//go:generate go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs --version 0.1.1
 
 func main() {
 	var debug bool
@@ -34,7 +35,7 @@ func main() {
 	flag.Parse()
 
 	opts := providerserver.ServeOpts{
-		Address: "registry.terraform.io/torb/terraform-provider-torb",
+		Address: "registry.terraform.io/providers/TorbFoundry/torb",
 		Debug:   debug,
 	}
 
