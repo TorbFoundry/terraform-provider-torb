@@ -4,7 +4,7 @@ NAMESPACE=tf
 NAME=provider
 BINARY=terraform-provider-${NAME}
 VERSION=0.1.1
-OS_ARCH=darwin_amd64
+OS_ARCH=darwin_arm64
 
 default: install
 
@@ -28,7 +28,7 @@ release:
 install: build
 	rm -rf ~/.terraform.d/plugins/${HOSTNAME}/${NAMESPACE}/${NAME}/
 	mkdir -p ~/.terraform.d/plugins/${HOSTNAME}/${NAMESPACE}/${NAME}/${VERSION}/${OS_ARCH}
-	mv ${BINARY} ~/.terraform.d/plugins/${HOSTNAME}/${NAMESPACE}/${NAME}/${VERSION}/${OS_ARCH}
+	mv ${BINARY} ~/.terraform.d/plugins/${HOSTNAME}/${NAMESPACE}/${NAME}/${VERSION}/${OS_ARCH}/
 
 test: 
 	go test -i $(TEST) || exit 1                                                   

@@ -94,7 +94,13 @@ func (d *HelmReleaseDataSource) Read(ctx context.Context, req datasource.ReadReq
 		return
 	}
 
-	flat_json, err := flatten.FlattenString(res, "", flatten.DotStyle)
+	var flat_json string
+
+	if res == "" || res == "null" {
+		flat_json = "{}"
+	} else {
+		flat_json, err = flatten.FlattenString(res, "", flatten.DotStyle)
+	}
 
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to flatten nested JSON", err.Error())
@@ -110,9 +116,15 @@ func (d *HelmReleaseDataSource) Read(ctx context.Context, req datasource.ReadReq
 func readReleaseFromHelm(ctx context.Context, release_name string, namespace string) (string, error) {
 	out, err := exec.Command("helm", "get", "--namespace", namespace, "values", release_name, "-o", "json").CombinedOutput()
 
+	str_out := string(out)
+
 	if err != nil {
 		return "", err
 	}
 
-	return string(out), nil
+	if str_out == "null\n" {
+		str_out = "{}"
+	}
+
+	return str_out, nil
 }
